@@ -20,6 +20,7 @@ python udping.py btt.service.gongt.me -s -t 500
 [-s] 显示当前系统时间打印
 [-t] 持续探测 直到 CTRL+C 退出
 [-t ms] 持续探测 精确到毫秒延迟 直到 CTRL+C 退出
+[-p] 使用固定监听端口请求 (默认随机端口)
 ```
 
 
@@ -31,7 +32,7 @@ python udping.py btt.service.gongt.me -s -t 500
 
 ### 安装依赖：
 ```python
-pip install pyinstaller
+pip install pyinstaller（更新：python.exe -m pip install --upgrade pip）
 python.exe -m pip install --upgrade pip
 ```
 

@@ -3,47 +3,58 @@ import time
 import sys
 from datetime import datetime
 
-def udp_tracker(target_host, target_port, hex_data_packets, ipv6=False, show_timestamp=False, continuous=False, wait_time=1000):
+def udp_tracker(target_host, target_port, hex_data_packets, listen_port=None, ipv6=False, show_timestamp=False, continuous=False, wait_time=1000):
     try:
-        # 根据ipv6标志创建socket
-        if ipv6:
-            client = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-        else:
-            client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        
-        # 设置等待超时
-        client.settimeout(wait_time / 1000)
-
-        # 循环发送数据包并接收响应
-        for i, hex_data in enumerate(hex_data_packets):
-            byte_data = bytes.fromhex(hex_data)
-            try:
-                # 如果有-s参数，显示系统时间
-                if show_timestamp:
-                    print(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                # 发送十六进制数据
-                client.sendto(byte_data, (target_host, target_port))
-                # 开始时间
-                start_time = time.time()
-                # 试图接收响应
-                data, addr = client.recvfrom(4096)
-                # 结束时间
-                end_time = time.time()
-                # 计算延迟
-                delay = (end_time - start_time) * 1000  # 将延迟从秒转换为毫秒
-                # 打印数据包类型或编号以及反馈信息
-                print(f"Type[{i+1:02d}]: Received response from {addr} with delay of {delay:.6f} ms")
-            except socket.timeout:
-                print("UDP request timed out")
-            except Exception as e:
-                print(f"An error occurred: {e}")
-
-            # 指定每次发送后的等待时间
-            time.sleep(wait_time / 1000)  # 将等待时间从毫秒转换为秒
+        while True:
+            # 根据ipv6标志创建socket
+            if ipv6:
+                client = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+            else:
+                client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             
-        # 检测是否需要连续执行
-        if continuous:
-            udp_tracker(target_host, target_port, hex_data_packets, ipv6=ipv6, show_timestamp=show_timestamp, continuous=continuous, wait_time=wait_time)
+            # 如果设置了固定监听端口，绑定到该端口
+            if listen_port:
+                if ipv6:
+                    client.bind(("::", listen_port))
+                else:
+                    client.bind(("0.0.0.0", listen_port))
+
+            # 设置等待超时
+            client.settimeout(wait_time / 1000)
+
+            # 循环发送数据包并接收响应
+            for i, hex_data in enumerate(hex_data_packets):
+                byte_data = bytes.fromhex(hex_data)
+                try:
+                    # 如果有-s参数，显示系统时间
+                    if show_timestamp:
+                        print(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                    # 发送十六进制数据
+                    client.sendto(byte_data, (target_host, target_port))
+                    # 开始时间
+                    start_time = time.time()
+                    # 试图接收响应
+                    data, addr = client.recvfrom(4096)
+                    # 结束时间
+                    end_time = time.time()
+                    # 计算延迟
+                    delay = (end_time - start_time) * 1000  # 将延迟从秒转换为毫秒
+                    # 打印数据包类型或编号以及反馈信息
+                    print(f"Type[{i+1:02d}]: Received response from {addr} with delay of {delay:.6f} ms")
+                except socket.timeout:
+                    print("UDP request timed out")
+                except Exception as e:
+                    print(f"An error occurred: {e}")
+
+                # 指定每次发送后的等待时间
+                time.sleep(wait_time / 1000)  # 将等待时间从毫秒转换为秒
+
+            # 关闭当前的socket
+            client.close()
+
+            # 检测是否需要连续执行
+            if not continuous:
+                break
             
     finally:
         client.close()
@@ -75,7 +86,7 @@ def is_ipv4_address(hostname):
 if __name__ == "__main__":
     # 命令行参数解析
     if len(sys.argv) < 2:
-        print("Usage: python udp_tracker.py [-4 | -6] <domain> [<port>] [-s] [-t <wait_time_ms>]")
+        print("Usage: python udp_tracker.py [-4 | -6] <domain> [<port>] [-s] [-t <wait_time_ms>] [-p <listen_port>]")
         sys.exit(1)
 
     # 检查是否有 -4 或 -6 选项, 以手动指定IPv4或IPv6 (包含删除参数避免下面定义错误)
@@ -93,7 +104,7 @@ if __name__ == "__main__":
         elif is_ipv6_address(sys.argv[1]):
             ipv6 = True
 
-    # 定义 解析命令行参数
+    # 定义解析命令行参数
     target_host = sys.argv[1]
     
     # 检查第2个参数是否为整数，如果不是或为空，使用默认端口号6969
@@ -107,6 +118,12 @@ if __name__ == "__main__":
     wait_time_index = sys.argv.index('-t') + 1 if '-t' in sys.argv and len(sys.argv) > sys.argv.index('-t') + 1 else -1
     if wait_time_index != -1 and wait_time_index < len(sys.argv):
         wait_time = int(sys.argv[wait_time_index])
+    
+    # 检查是否指定了监听端口
+    listen_port = None
+    listen_port_index = sys.argv.index('-p') + 1 if '-p' in sys.argv and len(sys.argv) > sys.argv.index('-p') + 1 else -1
+    if listen_port_index != -1 and listen_port_index < len(sys.argv):
+        listen_port = int(sys.argv[listen_port_index])
 
     # 定义固定的封包内容
     hex_data_packets = [
@@ -121,4 +138,4 @@ if __name__ == "__main__":
     ]
 
     # 执行UDP探测
-    udp_tracker(target_host, target_port, hex_data_packets, ipv6=ipv6, show_timestamp=show_timestamp, continuous=continuous, wait_time=wait_time)
+    udp_tracker(target_host, target_port, hex_data_packets, listen_port=listen_port, ipv6=ipv6, show_timestamp=show_timestamp, continuous=continuous, wait_time=wait_time)
