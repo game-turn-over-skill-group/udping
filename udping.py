@@ -22,6 +22,9 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port=None, ip
             # 设置等待超时
             client.settimeout(wait_time / 1000)
 
+            # 获取目标地址的解析结果
+            resolved_target_host = socket.getaddrinfo(target_host, None, socket.AF_INET6 if ipv6 else socket.AF_INET)[0][4][0]
+
             # 循环发送数据包并接收响应
             for i, hex_data in enumerate(hex_data_packets):
                 byte_data = bytes.fromhex(hex_data)
@@ -30,7 +33,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port=None, ip
                     if show_timestamp:
                         print(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
                     # 发送十六进制数据
-                    client.sendto(byte_data, (target_host, target_port))
+                    client.sendto(byte_data, (resolved_target_host, target_port))
                     # 开始时间
                     start_time = time.time()
                     # 试图接收响应
@@ -42,7 +45,8 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port=None, ip
                     # 打印数据包类型或编号以及反馈信息
                     print(f"Type[{i+1:02d}]: Received response from {addr} with delay of {delay:.6f} ms")
                 except socket.timeout:
-                    print("UDP request timed out")
+                    local_port = client.getsockname()[1]
+                    print(f"UDP request timed out (Target IP: {resolved_target_host}, Target Port: {target_port}, Local Port: {local_port})")
                 except Exception as e:
                     print(f"An error occurred: {e}")
 
