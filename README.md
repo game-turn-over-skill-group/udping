@@ -32,7 +32,11 @@ python udping.py btt.service.gongt.me -s -t 500
 
 ### 安装依赖：
 ```python
-pip install pyinstaller（更新：python.exe -m pip install --upgrade pip）
+pip install pyinstaller
+```
+
+### 更新依赖：
+```python
 python.exe -m pip install --upgrade pip
 ```
 
