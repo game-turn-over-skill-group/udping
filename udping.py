@@ -103,12 +103,15 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
         try:
             if listen_port == 0:
                 listen_port = random.randint(1024, 65535)  # Use a random port
-            client.bind(("", listen_port))
-            #print(f"Listening on port {listen_port}... ", end="")
-            #if client.getsockname()[1] == listen_port:
-            #    print("ok")
-            #else:
-            #    print("fail")
+            if protocol == socket.AF_INET6:
+                client.bind(("", listen_port, 0, 0))  # IPv6 binding requires 4-tuple
+            else:
+                client.bind(("", listen_port))
+                #print(f"Listening on port {listen_port}... ", end="")
+                #if client.getsockname()[1] == listen_port:
+                #    print("ok")
+                #else:
+                #    print("fail")
             return client, listen_port
         except Exception as e:
             print(f"Failed to bind to port {listen_port}: {e}")
@@ -148,7 +151,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                             else:
                                 print(f"Recv from: {addr}‹ {listen_port} ›‹ {response_time:.2f} ms ›[ {count} ]")
                         except socket.timeout:
-                            print(f"No response within {wait_time} seconds, timing out...")
+                            print(f"No response within {wait_time} seconds,‹ {listen_port} ›timing out...")
                         except socket.error as e:
                             print(f"Socket error while receiving: {e}")
 
@@ -157,7 +160,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
 
                     # Check if it's time to switch ports
                     if sent_packets >= 4:
-                        # print("Switching ports after 4 requests...")
+                    	# print("Switching ports after 4 requests...")
                         client.close()
                         client, listen_port = create_socket_and_bind(0)
                         if not client:
@@ -187,7 +190,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                         else:
                             print(f"Recv from: {addr}‹ {listen_port} ›‹ {response_time:.2f} ms ›[ {count} ]")
                     except socket.timeout:
-                        print(f"No response within {wait_time} seconds, timing out...")
+                        print(f"No response within {wait_time} seconds,‹ {listen_port} ›timing out...")
                     except socket.error as e:
                         print(f"Socket error while receiving: {e}")
 
