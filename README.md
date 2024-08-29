@@ -62,7 +62,7 @@ python.exe -m pip install --upgrade pip
 pyinstaller --onefile udping.py
 ```
 
-
+![udping-test.jpg](https://raw.githubusercontent.com/game-turn-over-skill-group/udping/main/img/udping-test%3DQQ%E6%88%AA%E5%9B%BE20240830023613.jpg)
 
 ##### 项目发起人：rer
 ##### 项目协作者：ChatGPT
