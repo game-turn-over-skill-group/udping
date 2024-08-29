@@ -2,25 +2,41 @@
 
 ### 源码使用方法：
 ```
-python udp_tracker.py [-4 | -6] <domain> [<port>] [-s] [-t <wait_time_ms>]
-python udping.py 域名 端口
-python3 udping.py 域名 端口
+usage: udping.py [-h] [-l LISTEN_PORT] [-4] [-6] [-s] [-c] [-i INTERVAL_TIME] [-w WAIT_TIME] [-x PROXY]
+                 target_host target_port hex_data_packets [hex_data_packets ...]
+udping.py: error: the following arguments are required: target_host, target_port, hex_data_packets
+
+用法：udping.py [-h] [-l 监听端口] [-4] [-6] [-s] [-c] [-i 请求间隔] [-w 超时时间] [-x 设置socks代理]
+		基础必要参数：域名/ip 端口 数据包
 ```
 
 ### 例子：
 ```python
-python udping.py ipv4.rer.lol 2710
-python udping.py -4 btt.service.gongt.me 6969
-python udping.py -6 btt.service.gongt.me 6969
-python udping.py btt.service.gongt.me -s -t 500
+python udping.py exodus.desync.com
+python udping.py -4 exodus.desync.com 6969
+python udping.py -6 exodus.desync.com 6969
+python udping.py exodus.desync.com -s -i 500
+
+C:\Users\Administrator\Desktop>python udping.py ipv4.rer.lol 6969 000004172710198000000000697CD3FA -s
+Proxy parameter received for parsing:
+Attempting to resolve target host: ipv4.rer.lol
+Resolved IPv4 address: 27.151.84.5
+Creating regular socket...
+Listening on port 25693... ok
+
+SysTime: 2024-08-29 04:04:57    Count: 1
+Send to: (27.151.84.5, 6969): 000004172710198000000000697cd3fa
+Respond Delay Time: 0.00 ms
+Recv from: ('27.151.84.5', 6969): 00000000697cd3fae0fe173475a68b01
 ```
 
-### 其他参数说明：（加最后不能在前面）
+### 其他参数说明：（添加在必要参数后,不能在前面）
 ```javascript
-[-s] 显示当前系统时间打印
-[-t] 持续探测 直到 CTRL+C 退出
-[-t ms] 持续探测 精确到毫秒延迟 直到 CTRL+C 退出
-[-p] 使用固定监听端口请求 (默认随机端口)
+[-s] 显示 当前系统时间+执行次数 打印输出
+[-c] 持续探测 直到 CTRL+C 退出
+[-i s] 持续探测 精确到小数点后面的毫秒延迟 直到 CTRL+C 退出
+[-l] 使用固定监听端口请求 (默认随机端口)
+[-x] 启用socks代理：-x socks://127.0.0.1:42416 域名 可选端口 可选数据包
 ```
 
 
@@ -33,6 +49,7 @@ python udping.py btt.service.gongt.me -s -t 500
 ### 安装依赖：
 ```python
 pip install pyinstaller
+pip install pysocks
 ```
 
 ### 更新依赖：

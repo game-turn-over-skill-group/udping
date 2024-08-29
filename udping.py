@@ -1,145 +1,248 @@
 import socket
-import time
+import socks
 import sys
-from datetime import datetime
+import argparse
+import time
+import random
 
-def udp_tracker(target_host, target_port, hex_data_packets, listen_port=None, ipv6=False, show_timestamp=False, continuous=False, wait_time=1000):
+def parse_proxy(proxy):
+    print(f"Proxy parameter received for parsing: {proxy}")
     try:
-        while True:
-            # 根据ipv6标志创建socket
-            if ipv6:
-                client = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-            else:
-                client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            
-            # 如果设置了固定监听端口，绑定到该端口
-            if listen_port:
-                if ipv6:
-                    client.bind(("::", listen_port))
-                else:
-                    client.bind(("0.0.0.0", listen_port))
+        if proxy:
+            if '://' not in proxy:
+                raise ValueError("Invalid proxy format. Expected 'socks://host:port' or 'http://host:port'.")
 
-            # 设置等待超时
-            client.settimeout(wait_time / 1000)
+            proxy_type, proxy_address = proxy.split('://', 1)
+            proxy_host, proxy_port = proxy_address.split(':', 1)
+            proxy_port = int(proxy_port)
 
-            # 获取目标地址的解析结果
-            resolved_target_host = socket.getaddrinfo(target_host, None, socket.AF_INET6 if ipv6 else socket.AF_INET)[0][4][0]
+            if proxy_type not in ['socks', 'http']:
+                raise ValueError("Unsupported proxy type: " + proxy_type)
 
-            # 循环发送数据包并接收响应
-            for i, hex_data in enumerate(hex_data_packets):
-                byte_data = bytes.fromhex(hex_data)
-                try:
-                    # 如果有-s参数，显示系统时间
-                    if show_timestamp:
-                        print(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                    # 发送十六进制数据
-                    client.sendto(byte_data, (resolved_target_host, target_port))
-                    # 开始时间
-                    start_time = time.time()
-                    # 试图接收响应
-                    data, addr = client.recvfrom(4096)
-                    # 结束时间
-                    end_time = time.time()
-                    # 计算延迟
-                    delay = (end_time - start_time) * 1000  # 将延迟从秒转换为毫秒
-                    # 打印数据包类型或编号以及反馈信息
-                    print(f"Type[{i+1:02d}]: Received response from {addr} with delay of {delay:.6f} ms")
-                except socket.timeout:
-                    local_port = client.getsockname()[1]
-                    print(f"UDP request timed out (Target IP: {resolved_target_host}, Target Port: {target_port}, Local Port: {local_port})")
-                except Exception as e:
-                    print(f"An error occurred: {e}")
-
-                # 指定每次发送后的等待时间
-                time.sleep(wait_time / 1000)  # 将等待时间从毫秒转换为秒
-
-            # 关闭当前的socket
-            client.close()
-
-            # 检测是否需要连续执行
-            if not continuous:
-                break
-            
-    finally:
-        client.close()
-
-def is_ipv6_address(hostname):
-    try:
-        # 解析主机名的地址信息
-        addr_info = socket.getaddrinfo(hostname, None)
-        # 检查是否存在 IPv6 地址信息
-        for info in addr_info:
-            if info[0] == socket.AF_INET6:
-                return True
-    except socket.gaierror:
-        pass
-    return False
-
-def is_ipv4_address(hostname):
-    try:
-        # 解析主机名的地址信息
-        addr_info = socket.getaddrinfo(hostname, None)
-        # 检查是否存在 IPv4 地址信息
-        for info in addr_info:
-            if info[0] == socket.AF_INET:
-                return True
-    except socket.gaierror:
-        pass
-    return False
-
-if __name__ == "__main__":
-    # 命令行参数解析
-    if len(sys.argv) < 2:
-        print("Usage: python udp_tracker.py [-4 | -6] <domain> [<port>] [-s] [-t <wait_time_ms>] [-p <listen_port>]")
+            return proxy_type, proxy_host, proxy_port
+        else:
+            return None, None, None
+    except ValueError as e:
+        print(f"Invalid proxy format: {e}")
         sys.exit(1)
 
-    # 检查是否有 -4 或 -6 选项, 以手动指定IPv4或IPv6 (包含删除参数避免下面定义错误)
-    ipv6 = False
-    if '-4' in sys.argv:
-        ipv6 = False
-        sys.argv.remove('-4')
-    elif '-6' in sys.argv:
-        ipv6 = True
-        sys.argv.remove('-6')
-    else:
-        # 如果未指定 -4 或 -6 参数，则根据域名的类型选择 IP 模式
-        if is_ipv4_address(sys.argv[1]):
-            ipv6 = False
-        elif is_ipv6_address(sys.argv[1]):
-            ipv6 = True
+def resolve_target_host(target_host):
+    print(f"Attempting to resolve target host: {target_host}")
+    ipv4_addr = None
+    ipv6_addr = None
 
-    # 定义解析命令行参数
-    target_host = sys.argv[1]
-    
-    # 检查第2个参数是否为整数，如果不是或为空，使用默认端口号6969
-    target_port = int(sys.argv[2]) if len(sys.argv) >= 3 and sys.argv[2].isdigit() else 6969
-    
-    show_timestamp = '-s' in sys.argv
-    continuous = '-t' in sys.argv
+    try:
+        ipv4_addr = socket.gethostbyname(target_host)
+        print(f"Resolved IPv4 address: {ipv4_addr}")
+    except socket.gaierror:
+        print(f"Failed to resolve target host {target_host} as IPv4")
 
-    # 检查是否指定了自定义等待时间
-    wait_time = 1000  # 默认等待时间为1000毫秒
-    wait_time_index = sys.argv.index('-t') + 1 if '-t' in sys.argv and len(sys.argv) > sys.argv.index('-t') + 1 else -1
-    if wait_time_index != -1 and wait_time_index < len(sys.argv):
-        wait_time = int(sys.argv[wait_time_index])
-    
-    # 检查是否指定了监听端口
-    listen_port = None
-    listen_port_index = sys.argv.index('-p') + 1 if '-p' in sys.argv and len(sys.argv) > sys.argv.index('-p') + 1 else -1
-    if listen_port_index != -1 and listen_port_index < len(sys.argv):
-        listen_port = int(sys.argv[listen_port_index])
+    try:
+        ipv6_addr = socket.getaddrinfo(target_host, None, socket.AF_INET6)[0][4][0]
+        print(f"Resolved IPv6 address: {ipv6_addr}")
+    except socket.gaierror:
+        print(f"Failed to resolve target host {target_host} as IPv6")
 
-    # 定义固定的封包内容
-    hex_data_packets = [
-        # 连接
-        '000004172710198000000000697CD3FA',
-        # 开始
-        '000004172710198000000000A9A2AED7CE3C3A390079B8F000000001CC7D6498E6B8A29AEFFE14D796B17A360CFA9F31E8DD4C1C2D4243303230382DE4BFAEE5BDBCE5BE97E69BBC000000000000000000000000000000000000000000000000000000020000000024895A510000006456CF0000CE3C3A390079B8F000000001E3CF064031DF3ECFA5A14EF7AE136FC94BD9AAD4BD90D9602D4243303230382DE4BFAEE5BDBCE5BE97E69BBC00000000000000000000000000000000000000000000000000000002000000007409DD100000006456CF0000',
-        # 更新
-        '00000417271019800000000026D817FBCA32314D0079AD3C00000001ABC7DE4931DF3ECFA5A14EF7AE136FC94BD9AAD4BD90D9602D4243303230382DE4BFAEE5BDBCE5BE97E69BBC00000000000000000000000000000000000000000000000000000002000000007409DD100000006456CF0000CA32314D0079AD3C00000001ABC7DE4931DF3ECFA5A14EF7AE136FC94BD9AAD4BD90D9602D4243303230382DE4BFAEE5BDBCE5BE97E69BBC00000000000000000000000000000000000000000000000000000002000000007409DD100000006456CF0000',
-        # 断开
-        '000004172710198000000000211B6D4AE919337B0079B9DB000000013CEFD99731DF3ECFA5A14EF7AE136FC94BD9AAD4BD90D9602D4243303230382DE4BFAEE5BDBCE5BE97E69BBC00000000000000000000000000000000000000000000000000000003000000007409DD100000000056CF0000E919337B0079B9DB000000012515A249E6B8A29AEFFE14D796B17A360CFA9F31E8DD4C1C2D4243303230382DE4BFAEE5BDBCE5BE97E69BBC000000000000000000000000000000000000000000000000000000030000000024895A510000000056CF0000'
-    ]
+    return ipv4_addr, ipv6_addr
 
-    # 执行UDP探测
-    udp_tracker(target_host, target_port, hex_data_packets, listen_port=listen_port, ipv6=ipv6, show_timestamp=show_timestamp, continuous=continuous, wait_time=wait_time)
+def generate_default_hex_data():
+    # 生成默认的数据包，其中最后8位为随机的HEX值
+    default_hex_data = "000004172710198000000000" + ''.join(random.choice('0123456789ABCDEF') for _ in range(8))
+    # print(f"Generated default hex data: {default_hex_data}")
+    return default_hex_data
+
+def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv4, use_ipv6, show_timecount, continuous, interval_time, wait_time, proxy):
+    proxy_type, proxy_host, proxy_port = parse_proxy(proxy)
+
+    try:
+        # 根据用户选择的协议强制解析地址
+        if use_ipv6:
+            protocol = socket.AF_INET6
+            ipv6_addr = resolve_target_host(target_host)[1]  # 只获取IPv6地址
+            if not ipv6_addr:
+                print(f"IPv6 address is not resolved for the target host {target_host}.")
+                return
+            resolved_target_host = ipv6_addr
+        elif use_ipv4:
+            protocol = socket.AF_INET
+            ipv4_addr = resolve_target_host(target_host)[0]  # 只获取IPv4地址
+            if not ipv4_addr:
+                print(f"IPv4 address is not resolved for the target host {target_host}.")
+                return
+            resolved_target_host = ipv4_addr
+        else:
+            # 如果既没有强制指定协议，则根据解析结果选择
+            ipv4_addr, ipv6_addr = resolve_target_host(target_host)
+            if ipv6_addr:
+                protocol = socket.AF_INET6
+                resolved_target_host = ipv6_addr
+            elif ipv4_addr:
+                protocol = socket.AF_INET
+                resolved_target_host = ipv4_addr
+            else:
+                print(f"Failed to resolve target host {target_host} to a valid address.")
+                return
+
+    except Exception as e:
+        print(f"Failed to resolve target host: {e}")
+        return
+
+    def create_socket_and_bind(listen_port):
+        try:
+            if proxy_type == 'socks':
+                # print("Creating SOCKS5 socket...")
+                client = socks.socksocket(protocol, socket.SOCK_DGRAM)
+                client.set_proxy(socks.SOCKS5, proxy_host, proxy_port)
+            else:
+                # print("Creating regular socket...")
+                client = socket.socket(protocol, socket.SOCK_DGRAM)
+        except Exception as e:
+            print(f"Failed to create socket: {e}")
+            return None, None
+
+        try:
+            if listen_port == 0:
+                listen_port = random.randint(1024, 65535)  # Use a random port
+            client.bind(("", listen_port))
+            #print(f"Listening on port {listen_port}... ", end="")
+            #if client.getsockname()[1] == listen_port:
+            #    print("ok")
+            #else:
+            #    print("fail")
+            return client, listen_port
+        except Exception as e:
+            print(f"Failed to bind to port {listen_port}: {e}")
+            client.close()
+            return None, None
+
+    # print("Socket is ready for data transfer")
+    client, listen_port = create_socket_and_bind(listen_port)
+    if not client:
+        return
+
+    count = 0
+    sent_packets = 0
+
+    try:
+        if continuous:
+            while True:
+                for hex_data in hex_data_packets:
+                    try:
+                        count += 1
+                        sent_packets += 1
+                        # 在持续发送模式下生成随机的数据包
+                        data = bytes.fromhex(generate_default_hex_data())
+                        if show_timecount:
+                            print(f"\nSysTime: {time.strftime('%Y-%m-%d %H:%M:%S')}    Count: {count}")
+                            print(f"Send to: ({resolved_target_host}, {target_port})‹ {listen_port} ›: {data.hex()}")
+                        client.sendto(data, (resolved_target_host, target_port))
+
+                        start_time = time.time()
+                        try:
+                            client.settimeout(wait_time)
+                            response, addr = client.recvfrom(4096)
+                            end_time = time.time()
+                            response_time = (end_time - start_time) * 1000  # Convert to milliseconds
+                            if show_timecount:
+                                print(f"Recv from: {addr}‹ {response_time:.2f} ms ›: {response.hex()}")
+                            else:
+                                print(f"Recv from: {addr}‹ {listen_port} ›‹ {response_time:.2f} ms ›[ {count} ]")
+                        except socket.timeout:
+                            print(f"No response within {wait_time} seconds, timing out...")
+                        except socket.error as e:
+                            print(f"Socket error while receiving: {e}")
+
+                    except Exception as e:
+                        print(f"Failed to send data: {e}")
+
+                    # Check if it's time to switch ports
+                    if sent_packets >= 4:
+                        # print("Switching ports after 4 requests...")
+                        client.close()
+                        client, listen_port = create_socket_and_bind(0)
+                        if not client:
+                            return
+                        sent_packets = 0
+
+                    time.sleep(interval_time)
+        else:
+            for hex_data in hex_data_packets:
+                try:
+                    count += 1
+                    sent_packets += 1
+                    data = bytes.fromhex(hex_data)
+                    if show_timecount:
+                        print(f"\nSysTime: {time.strftime('%Y-%m-%d %H:%M:%S')}    Count: {count}")
+                        print(f"Send to: ({resolved_target_host}, {target_port})‹ {listen_port} ›: {data.hex()}")
+                    client.sendto(data, (resolved_target_host, target_port))
+
+                    start_time = time.time()
+                    try:
+                        client.settimeout(wait_time)
+                        response, addr = client.recvfrom(4096)
+                        end_time = time.time()
+                        response_time = (end_time - start_time) * 1000  # Convert to milliseconds
+                        if show_timecount:
+                            print(f"Recv from: {addr}‹ {response_time:.2f} ms ›: {response.hex()}")
+                        else:
+                            print(f"Recv from: {addr}‹ {listen_port} ›‹ {response_time:.2f} ms ›[ {count} ]")
+                    except socket.timeout:
+                        print(f"No response within {wait_time} seconds, timing out...")
+                    except socket.error as e:
+                        print(f"Socket error while receiving: {e}")
+
+                except Exception as e:
+                    print(f"Failed to send data: {e}")
+
+                # Check if it's time to switch ports
+                if sent_packets >= 4:
+                    print("Switching ports after 4 requests...")
+                    client.close()
+                    client, listen_port = create_socket_and_bind(0)
+                    if not client:
+                        return
+                    sent_packets = 0
+
+                time.sleep(interval_time)
+    except KeyboardInterrupt:
+        print("Interrupted by user")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+    finally:
+        # print("Closing socket...")
+        client.close()
+        # print("Socket closed")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="UDP Packet Sender")
+    parser.add_argument("target_host", help="Target host to send UDP packets to")
+    parser.add_argument("target_port", type=int, nargs='?', default=6969, help="Target port to send UDP packets to (default: 6969)")
+    parser.add_argument("hex_data_packets", nargs='*', default=[generate_default_hex_data()], help="Hexadecimal data packets to send (default: generated with random HEX value)")
+    parser.add_argument("-l", "--listen-port", type=int, default=0, help="Local port to listen for responses (0 for random port)")
+    parser.add_argument("-4", "--ipv4", action="store_true", help="Use IPv4")
+    parser.add_argument("-6", "--ipv6", action="store_true", help="Use IPv6")
+    parser.add_argument("-s", "--show-TimeCount", action="store_true", help="Show system time and run count")
+    parser.add_argument("-c", "--continuous", action="store_true", help="Send packets continuously")
+    parser.add_argument("-i", "--interval-time", type=float, default=1.0, help="Time interval between sending packets (in seconds)")
+    parser.add_argument("-w", "--wait-time", type=float, default=2.0, help="Timeout duration for waiting for a response (in seconds)")
+    parser.add_argument("-x", "--proxy", default="", help="Proxy setting (e.g., socks://host:port or http://host:port)")
+
+    args = parser.parse_args()
+
+    if args.ipv4 and args.ipv6:
+        print("Error: Cannot use both IPv4 and IPv6 at the same time.")
+        sys.exit(1)
+
+    udp_tracker(
+        target_host=args.target_host,
+        target_port=args.target_port,
+        hex_data_packets=args.hex_data_packets,
+        listen_port=args.listen_port,
+        use_ipv4=args.ipv4,
+        use_ipv6=args.ipv6,
+        show_timecount=args.show_TimeCount,
+        continuous=args.continuous,
+        interval_time=args.interval_time,
+        wait_time=args.wait_time,
+        proxy=args.proxy
+    )
