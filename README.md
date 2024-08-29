@@ -15,7 +15,7 @@ udping.py: error: the following arguments are required: target_host, target_port
 python udping.py exodus.desync.com
 python udping.py -4 exodus.desync.com 6969
 python udping.py -6 exodus.desync.com 6969
-python udping.py exodus.desync.com -s -i 500
+python udping.py exodus.desync.com -s -i 0.5
 
 C:\Users\Administrator\Desktop>python udping.py ipv4.rer.lol 6969 000004172710198000000000697CD3FA -s
 Proxy parameter received for parsing:
