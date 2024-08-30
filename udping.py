@@ -90,11 +90,11 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
     def create_socket_and_bind(listen_port):
         try:
             if proxy_type == 'socks':
-                # print("Creating SOCKS5 socket...")
+            	# print("Creating SOCKS5 socket...")
                 client = socks.socksocket(protocol, socket.SOCK_DGRAM)
                 client.set_proxy(socks.SOCKS5, proxy_host, proxy_port)
             else:
-                # print("Creating regular socket...")
+            	# print("Creating regular socket...")
                 client = socket.socket(protocol, socket.SOCK_DGRAM)
         except Exception as e:
             print(f"Failed to create socket: {e}")
@@ -102,7 +102,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
 
         try:
             if listen_port == 0:
-                listen_port = random.randint(1024, 65535)  # Use a random port
+                listen_port = random.randint(1024, 65535)  # Use a random port if listen_port is 0
             if protocol == socket.AF_INET6:
                 client.bind(("", listen_port, 0, 0))  # IPv6 binding requires 4-tuple
             else:
@@ -158,9 +158,9 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                     except Exception as e:
                         print(f"Failed to send data: {e}")
 
-                    # Check if it's time to switch ports
-                    if sent_packets >= 4:
-                    	# print("Switching ports after 4 requests...")
+                    # Check if it's time to switch ports only if a random port is used
+                    if args.listen_port == 0 and sent_packets >= 4:
+                        # print("Switching ports after 4 requests...")
                         client.close()
                         client, listen_port = create_socket_and_bind(0)
                         if not client:
@@ -197,8 +197,8 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                 except Exception as e:
                     print(f"Failed to send data: {e}")
 
-                # Check if it's time to switch ports
-                if sent_packets >= 4:
+                # Check if it's time to switch ports only if a random port is used
+                if args.listen_port == 0 and sent_packets >= 4:
                     print("Switching ports after 4 requests...")
                     client.close()
                     client, listen_port = create_socket_and_bind(0)
