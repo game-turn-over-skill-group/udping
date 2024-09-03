@@ -62,50 +62,6 @@ def generate_default_hex_data():
     # print(f"Generated default hex data: {default_hex_data}")
     return default_hex_data
 
-def create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, listen_port):
-	print(f"create_socket_and_bind：protocol: {protocol}, proxy_type: {proxy_type}, proxy_host: {proxy_host}, proxy_port: {proxy_port}, listen_port: {listen_port}")
-	try:
-		if proxy_type == 'socks':
-			print("Creating SOCKS5 Proxy socket...")
-			client = socks.socksocket(protocol, socket.SOCK_DGRAM)
-			client.set_proxy(socks.SOCKS5, proxy_host, proxy_port)
-		else:
-			print("Creating Direct Connection socket...")
-			client = socket.socket(protocol, socket.SOCK_DGRAM)
-	except Exception as e:
-		print(f"Failed to create socket: {e}")
-		return None, None
-
-	try:
-		if listen_port == 0:
-			listen_port = random.randint(1024, 65535)  # Use a random port if listen_port is 0
-		# print(f"Attempting to bind to port {listen_port} with protocol {protocol}...")
-		if protocol == socket.AF_INET6:
-			print("Binding as IPv6...")
-			client.bind(("", listen_port, 0, 0))  # IPv6 binding requires 4-tuple
-			sockname = client.getsockname()
-			print(f"Listening on port {sockname}... ", end="")
-			if client.getsockname()[1] == listen_port:
-				print("ok")
-			else:
-				print("fail")
-		else:
-			print("Binding as IPv4...")
-			client.bind(("", listen_port))
-			sockname = client.getsockname()
-			print(f"Listening on port {sockname}... ", end="")
-			if client.getsockname()[1] == listen_port:
-				print("ok")
-			else:
-				print("fail")
-
-		return client, listen_port
-
-	except Exception as e:
-		print(f"Failed to bind to port {listen_port}: {e}")
-		client.close()
-		return None, None
-
 def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv4, use_ipv6, show_timecount, continuous, interval_time, wait_time, proxy):
     proxy_type, proxy_host, proxy_port = parse_proxy(proxy)
 
@@ -142,8 +98,39 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
         print(f"Failed to resolve target host: {e}")
         return
 
-    # 创建并绑定套接字
-    client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, listen_port)
+    def create_socket_and_bind(listen_port):
+        try:
+            if proxy_type == 'socks':
+            	# print("Creating SOCKS5 socket...")
+            	client = socks.socksocket(protocol, socket.SOCK_DGRAM)
+            	client.set_proxy(socks.SOCKS5, proxy_host, proxy_port)
+            else:
+            	# print("Creating regular socket...")
+            	client = socket.socket(protocol, socket.SOCK_DGRAM)
+        except Exception as e:
+            print(f"Failed to create socket: {e}")
+            return None, None
+
+        try:
+            if listen_port == 0:
+                listen_port = random.randint(1024, 65535)  # Use a random port if listen_port is 0
+            if protocol == socket.AF_INET6:
+                client.bind(("", listen_port, 0, 0))  # IPv6 binding requires 4-tuple
+            else:
+                client.bind(("", listen_port))
+                #print(f"Listening on port {listen_port}... ", end="")
+                #if client.getsockname()[1] == listen_port:
+                #    print("ok")
+                #else:
+                #    print("fail")
+            return client, listen_port
+        except Exception as e:
+            print(f"Failed to bind to port {listen_port}: {e}")
+            client.close()
+            return None, None
+
+    # print("Socket is ready for data transfer")
+    client, listen_port = create_socket_and_bind(listen_port)
     if not client:
         return
 
@@ -186,7 +173,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                     if args.listen_port == 0 and sent_packets >= 4:
                         # print("Switching ports after 4 requests...")
                         client.close()
-                        client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0)
+                        client, listen_port = create_socket_and_bind(0)
                         if not client:
                             return
                         sent_packets = 0
@@ -225,7 +212,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                 if args.listen_port == 0 and sent_packets >= 4:
                     print("Switching ports after 4 requests...")
                     client.close()
-                    client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0)
+                    client, listen_port = create_socket_and_bind(0)
                     if not client:
                         return
                     sent_packets = 0
