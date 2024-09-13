@@ -62,52 +62,87 @@ def generate_default_hex_data():
     # print(f"Generated default hex data: {default_hex_data}")
     return default_hex_data
 
-def create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, listen_port):
-	print(f"create_socket_and_bind：protocol: {protocol}, proxy_type: {proxy_type}, proxy_host: {proxy_host}, proxy_port: {proxy_port}, listen_port: {listen_port}")
-	try:
-		if proxy_type == 'socks':
-			print("Creating SOCKS5 Proxy socket...")
-			client = socks.socksocket(protocol, socket.SOCK_DGRAM)
-			client.set_proxy(socks.SOCKS5, proxy_host, proxy_port)
-		else:
-			print("Creating Direct Connection socket...")
-			client = socket.socket(protocol, socket.SOCK_DGRAM)
-	except Exception as e:
-		print(f"Failed to create socket: {e}")
-		return None, None
+def create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, listen_port, show_debug):
+    if show_debug:
+        print(f"create_socket_and_bind：protocol: {protocol}, proxy_type: {proxy_type}, proxy_host: {proxy_host}, proxy_port: {proxy_port}, listen_port: {listen_port}")
+    try:
+        if proxy_type == 'socks':
+            if show_debug:
+                print("Creating SOCKS5 Proxy socket...")
+            client = socks.socksocket(protocol, socket.SOCK_DGRAM)
+            client.set_proxy(socks.SOCKS5, proxy_host, proxy_port)
+        else:
+            if show_debug:
+                print("Creating Direct Connection socket...")
+            client = socket.socket(protocol, socket.SOCK_DGRAM)
+    except Exception as e:
+        print(f"Failed to create socket: {e}")
+        return None, None
 
-	try:
-		if listen_port == 0:
-			listen_port = random.randint(1024, 65535)  # Use a random port if listen_port is 0
-		# print(f"Attempting to bind to port {listen_port} with protocol {protocol}...")
-		if protocol == socket.AF_INET6:
-			print("Binding as IPv6...")
-			client.bind(("", listen_port, 0, 0))  # IPv6 binding requires 4-tuple
-			sockname = client.getsockname()
-			print(f"Listening on port {sockname}... ", end="")
-			if client.getsockname()[1] == listen_port:
-				print("ok")
-			else:
-				print("fail")
-		else:
-			print("Binding as IPv4...")
-			client.bind(("", listen_port))
-			sockname = client.getsockname()
-			print(f"Listening on port {sockname}... ", end="")
-			if client.getsockname()[1] == listen_port:
-				print("ok")
-			else:
-				print("fail")
+    try:
+        if listen_port == 0:
+            listen_port = random.randint(1024, 65535)  # Use a random port if listen_port is 0
+        
+        if protocol == socket.AF_INET6:
+            if show_debug:
+                print("Binding as IPv6...")
+            client.bind(("", listen_port, 0, 0))  # Adjusting for IPv6 bind
+        else:
+            if show_debug:
+                print("Binding as IPv4...")
+            client.bind(("", listen_port))
 
-		return client, listen_port
+        sockname = client.getsockname()
+        if show_debug:
+            print(f"Listening on port {sockname}... ", end="")
+            if client.getsockname()[1] == listen_port:
+            	print("ok")
+            else:
+            	print("fail")
+        return client, listen_port
+    except Exception as e:
+        print(f"Failed to bind to port {listen_port}: {e}")
+        client.close()
+        return None, None
 
-	except Exception as e:
-		print(f"Failed to bind to port {listen_port}: {e}")
-		client.close()
-		return None, None
+def warm_up_connection(client, resolved_target_host, target_port, wait_time=2):
+    try:
+        # 发送一个预热数据包并忽略其响应
+        client.settimeout(wait_time)
+        client.sendto(bytes.fromhex(generate_default_hex_data()), (resolved_target_host, target_port))
+        try:
+            client.recvfrom(4096)  # 忽略响应
+        except socket.timeout:
+            print("Warm-up packet sent, but no response received (normal behavior).")
+        # print("Warm-up packet sent and response ignored.")
+    except Exception as e:
+        print(f"Warm-up failed: {e}")
 
-def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv4, use_ipv6, show_timecount, continuous, interval_time, wait_time, proxy):
+def check_proxy_connection(proxy_type, proxy_host, proxy_port, show_debug):
+    try:
+        if proxy_type == 'socks':
+            test_socket = socks.socksocket(socket.AF_INET, socket.SOCK_STREAM)
+            test_socket.set_proxy(socks.SOCKS5, proxy_host, proxy_port)
+        else:
+            test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        test_socket.settimeout(5)
+        test_socket.connect((proxy_host, proxy_port))
+        test_socket.close()
+        if show_debug:
+        	print(f"Proxy {proxy_host}:{proxy_port} is reachable.")
+        return True
+    except Exception as e:
+        print(f"Failed to connect to proxy {proxy_host}:{proxy_port}: {e}")
+        return False
+
+def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv4, use_ipv6, show_debug, continuous, interval_time, wait_time, proxy):
     proxy_type, proxy_host, proxy_port = parse_proxy(proxy)
+
+    # 检查代理可用性
+    if proxy_host and proxy_port:
+        if not check_proxy_connection(proxy_type, proxy_host, proxy_port, show_debug):
+            print("Proxy connection check failed. Exiting.")
+            return
 
     try:
         # 根据用户选择的协议强制解析地址
@@ -137,16 +172,16 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
             else:
                 print(f"Failed to resolve target host {target_host} to a valid address.")
                 return
-
     except Exception as e:
         print(f"Failed to resolve target host: {e}")
         return
 
     # 创建并绑定套接字
-    client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, listen_port)
+    client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, listen_port, show_debug)
     if not client:
         return
 
+    warm_up_connection(client, resolved_target_host, target_port)  # 预热新端口连接 = 防止首个包高延迟
     count = 0
     sent_packets = 0
 
@@ -159,7 +194,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                         sent_packets += 1
                         # 在持续发送模式下生成随机的数据包
                         data = bytes.fromhex(generate_default_hex_data())
-                        if show_timecount:
+                        if show_debug:
                             print(f"\nSysTime: {time.strftime('%Y-%m-%d %H:%M:%S')}    Count: {count}")
                             print(f"Send to: ({resolved_target_host}, {target_port})‹ {listen_port} ›: {data.hex()}")
                         client.sendto(data, (resolved_target_host, target_port))
@@ -170,7 +205,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                             response, addr = client.recvfrom(4096)
                             end_time = time.time()
                             response_time = (end_time - start_time) * 1000  # Convert to milliseconds
-                            if show_timecount:
+                            if show_debug:
                                 print(f"Recv from: {addr}‹ {response_time:.2f} ms ›: {response.hex()}")
                             else:
                                 print(f"Recv from: {addr}‹ {listen_port} ›‹ {response_time:.2f} ms ›[ {count} ]")
@@ -182,13 +217,14 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                     except Exception as e:
                         print(f"Failed to send data: {e}")
 
-                    # Check if it's time to switch ports only if a random port is used
+                    # Check if it's time to switch ports only if a random port is used / 检查是否仅在使用随机端口时才需要切换端口
                     if args.listen_port == 0 and sent_packets >= 4:
                         # print("Switching ports after 4 requests...")
                         client.close()
-                        client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0)
+                        client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0, show_debug)
                         if not client:
                             return
+                        warm_up_connection(client, resolved_target_host, target_port)  # 预热新端口连接 = 防止首个包高延迟
                         sent_packets = 0
 
                     time.sleep(interval_time)
@@ -198,7 +234,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                     count += 1
                     sent_packets += 1
                     data = bytes.fromhex(hex_data)
-                    if show_timecount:
+                    if show_debug:
                         print(f"\nSysTime: {time.strftime('%Y-%m-%d %H:%M:%S')}    Count: {count}")
                         print(f"Send to: ({resolved_target_host}, {target_port})‹ {listen_port} ›: {data.hex()}")
                     client.sendto(data, (resolved_target_host, target_port))
@@ -209,7 +245,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                         response, addr = client.recvfrom(4096)
                         end_time = time.time()
                         response_time = (end_time - start_time) * 1000  # Convert to milliseconds
-                        if show_timecount:
+                        if show_debug:
                             print(f"Recv from: {addr}‹ {response_time:.2f} ms ›: {response.hex()}")
                         else:
                             print(f"Recv from: {addr}‹ {listen_port} ›‹ {response_time:.2f} ms ›[ {count} ]")
@@ -225,7 +261,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                 if args.listen_port == 0 and sent_packets >= 4:
                     print("Switching ports after 4 requests...")
                     client.close()
-                    client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0)
+                    client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0, show_debug)
                     if not client:
                         return
                     sent_packets = 0
@@ -241,14 +277,14 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
         # print("Socket closed")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="UDP Packet Sender")
+    parser = argparse.ArgumentParser(description="UDPing tool with proxy support")
     parser.add_argument("target_host", help="Target host to send UDP packets to")
     parser.add_argument("target_port", type=int, nargs='?', default=6969, help="Target port to send UDP packets to (default: 6969)")
     parser.add_argument("hex_data_packets", nargs='*', default=[generate_default_hex_data()], help="Hexadecimal data packets to send (default: generated with random HEX value)")
     parser.add_argument("-l", "--listen-port", type=int, default=0, help="Local port to listen for responses (0 for random port)")
     parser.add_argument("-4", "--ipv4", action="store_true", help="Use IPv4")
     parser.add_argument("-6", "--ipv6", action="store_true", help="Use IPv6")
-    parser.add_argument("-s", "--show-TimeCount", action="store_true", help="Show system time and run count")
+    parser.add_argument('-s', '--show_debug', action='store_true', help="Enable debug mode to show detailed information")
     parser.add_argument("-c", "--continuous", action="store_true", help="Send packets continuously")
     parser.add_argument("-i", "--interval-time", type=float, default=1.0, help="Time interval between sending packets (in seconds)")
     parser.add_argument("-w", "--wait-time", type=float, default=2.0, help="Timeout duration for waiting for a response (in seconds)")
@@ -267,7 +303,7 @@ if __name__ == "__main__":
         listen_port=args.listen_port,
         use_ipv4=args.ipv4,
         use_ipv6=args.ipv6,
-        show_timecount=args.show_TimeCount,
+        show_debug=args.show_debug,
         continuous=args.continuous,
         interval_time=args.interval_time,
         wait_time=args.wait_time,
