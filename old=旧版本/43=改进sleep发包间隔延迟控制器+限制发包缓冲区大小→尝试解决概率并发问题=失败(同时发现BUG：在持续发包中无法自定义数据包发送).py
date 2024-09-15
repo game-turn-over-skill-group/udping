@@ -1,12 +1,9 @@
-import threading
 import socket
 import socks
 import sys
 import argparse
 import time
 import random
-
-lock = threading.Lock()  # 初始化线程锁
 
 def parse_proxy(proxy):
     """解析代理服务器"""
@@ -233,8 +230,9 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
     count = 0
     sent_packets = 0
 
+    # 在持续发送模式下
     try:
-        if continuous:  # 在持续发送模式下
+        if continuous:
             while True:
                 for hex_data in hex_data_packets:
                     try:
@@ -242,32 +240,29 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                         sent_packets += 1
                         # data = bytes.fromhex(hex_data)  # 使用自定义数据包
                         data = bytes.fromhex(generate_default_hex_data())  # 使用随机数据的连接包
-                        
                         if len(data) > buffer_size:
                         	print(f"Warning: Data packet length {len(data)} exceeds buffer size {buffer_size}. Truncating...")
                         	data = data[:buffer_size]  # 截断数据包以适应缓冲区
-                        
-                        with lock:  # 线程安全地清理缓冲区并发送数据包
-                            if show_debug:
-                                print(f"\nSysTime: {time.strftime('%Y-%m-%d %H:%M:%S')}    Count: {count}")
-                                print(f"Send to: ({resolved_target_host}, {target_port})‹ {listen_port} ›: {data.hex()}")
-                            clear_socket_buffer(client, show_debug)  # 发送数据包之前清理缓冲区
-                            client.sendto(data, (resolved_target_host, target_port))
+                        if show_debug:
+                            print(f"\nSysTime: {time.strftime('%Y-%m-%d %H:%M:%S')}    Count: {count}")
+                            print(f"Send to: ({resolved_target_host}, {target_port})‹ {listen_port} ›: {data.hex()}")
+                        clear_socket_buffer(client, show_debug)  # 发送数据包之前清理缓冲区
+                        client.sendto(data, (resolved_target_host, target_port))
 
-                            start_time = time.time()
-                            try:
-                                client.settimeout(wait_time)
-                                response, addr = client.recvfrom(4096)
-                                end_time = time.time()
-                                response_time = (end_time - start_time) * 1000  # 转换为毫秒
-                                if show_debug:
-                                    print(f"Recv from: {addr}‹ {response_time:.2f} ms ›: {response.hex()}")
-                                else:
-                                    print(f"Recv from: {addr}‹ {listen_port} ›‹ {response_time:.2f} ms ›[ {count} ]")
-                            except socket.timeout:
-                                print(f"No response within {wait_time} seconds,‹ {listen_port} ›timing out...")
-                            except socket.error as e:
-                                print(f"Socket error while receiving: {e}")
+                        start_time = time.time()
+                        try:
+                            client.settimeout(wait_time)
+                            response, addr = client.recvfrom(4096)
+                            end_time = time.time()
+                            response_time = (end_time - start_time) * 1000  # Convert to milliseconds
+                            if show_debug:
+                                print(f"Recv from: {addr}‹ {response_time:.2f} ms ›: {response.hex()}")
+                            else:
+                                print(f"Recv from: {addr}‹ {listen_port} ›‹ {response_time:.2f} ms ›[ {count} ]")
+                        except socket.timeout:
+                            print(f"No response within {wait_time} seconds,‹ {listen_port} ›timing out...")
+                        except socket.error as e:
+                            print(f"Socket error while receiving: {e}")
 
                     except Exception as e:
                         print(f"Failed to send data: {e}")
@@ -276,17 +271,15 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                     if args.listen_port == 0 and sent_packets >= 4:
                         # print("Switching ports after 4 requests...")
                         client.close()
-                        with lock:
-                        	client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0, show_debug)
-                        	if not client:
-                        		return
-                        	warm_up_connection(client, resolved_target_host, target_port, proxy)  # 预热新端口连接 = 防止首个包高延迟
+                        client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0, show_debug)
+                        if not client:
+                            return
+                        warm_up_connection(client, resolved_target_host, target_port, proxy)  # 预热新端口连接 = 防止首个包高延迟
                         sent_packets = 0
 
                     precise_sleep(interval_time)
                     # time.sleep(interval_time)  # 旧版本的延迟控制
         else:
-            # 正常模式(默认) = 探测1次
             for hex_data in hex_data_packets:
                 try:
                     count += 1

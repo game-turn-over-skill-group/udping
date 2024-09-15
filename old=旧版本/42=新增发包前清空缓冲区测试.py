@@ -1,4 +1,3 @@
-import threading
 import socket
 import socks
 import sys
@@ -6,10 +5,7 @@ import argparse
 import time
 import random
 
-lock = threading.Lock()  # 初始化线程锁
-
 def parse_proxy(proxy):
-    """解析代理服务器"""
     print(f"Proxy parameter received for parsing: {proxy}")
     try:
         if proxy:
@@ -42,7 +38,6 @@ def parse_proxy(proxy):
         sys.exit(1)
 
 def resolve_target_host(target_host):
-    """解析ipv4+ipv6域名"""
     print(f"Attempting to resolve target host: {target_host}")
     ipv4_addr = None
     ipv6_addr = None
@@ -62,27 +57,13 @@ def resolve_target_host(target_host):
     return ipv4_addr, ipv6_addr
 
 def generate_default_hex_data():
-    """随机生成+改动结尾部分数据包"""
     # 生成默认的数据包，其中最后8位为随机的HEX值
     default_hex_data = "000004172710198000000000" + ''.join(random.choice('0123456789ABCDEF') for _ in range(8))
     # print(f"Generated default hex data: {default_hex_data}")
     return default_hex_data
 
-def get_buffer_size(hex_data_packets):
-    """根据数据包长度设置缓冲区大小"""
-    if hex_data_packets:
-        # 检测自定义数据包的长度，并为缓冲区添加 2 字节的冗余空间
-        max_packet_length = max(len(packet) for packet in hex_data_packets) // 2  # 每两个字符表示一个字节
-        buffer_size = max_packet_length + 2
-    else:
-        # 使用默认数据包大小（16 字节 + 2 字节缓冲区冗余）
-        buffer_size = 16 + 2
-    return buffer_size
-
 def create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, listen_port, show_debug):
-    """创建socket绑定"""
     if show_debug:
-        print(f"")
         print(f"create_socket_and_bind：protocol: {protocol}, proxy_type: {proxy_type}, proxy_host: {proxy_host}, proxy_port: {proxy_port}, listen_port: {listen_port}")
     try:
         if proxy_type == 'socks':
@@ -125,7 +106,6 @@ def create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, listen_
         return None, None
 
 def warm_up_connection(client, resolved_target_host, target_port, proxy):
-	"""判断是否启用代理 yes = 发送预热包 //防止首个包探测出现计算延迟不准的问题"""
 	if not proxy:
 		return
 	try:
@@ -140,7 +120,6 @@ def warm_up_connection(client, resolved_target_host, target_port, proxy):
 		print(f"Warm-up failed: {e}")
 
 def check_proxy_connection(proxy_type, proxy_host, proxy_port, show_debug):
-    """检测代理连接是否可用"""
     try:
         if proxy_type == 'socks':
             test_socket = socks.socksocket(socket.AF_INET, socket.SOCK_STREAM)
@@ -168,23 +147,12 @@ def clear_socket_buffer(client, show_debug):
     except socket.timeout:
     	pass  # 超时后退出循环，说明缓冲区已清空
     except Exception as e:
-    	print(f"Error while clearing socket buffer: {e}")  # 清理套接字缓冲区时出错
+    	print(f"清理套接字缓冲区时出错: {e}")
     finally:
     	client.settimeout(None)  # 还原超时设置
 
-def precise_sleep(duration):
-    """精准型延迟控制器"""
-    start = time.perf_counter()
-    while time.perf_counter() - start < duration:
-        pass
-
 def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv4, use_ipv6, show_debug, continuous, interval_time, wait_time, proxy):
     proxy_type, proxy_host, proxy_port = parse_proxy(proxy)
-
-    # 设置发送缓冲区的大小
-    buffer_size = get_buffer_size(hex_data_packets)
-    if show_debug:
-    	print(f"Buffer size set to: {buffer_size} bytes")
 
     # 检查代理可用性
     if proxy_host and proxy_port:
@@ -234,40 +202,34 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
     sent_packets = 0
 
     try:
-        if continuous:  # 在持续发送模式下
+        if continuous:
             while True:
                 for hex_data in hex_data_packets:
                     try:
                         count += 1
                         sent_packets += 1
-                        # data = bytes.fromhex(hex_data)  # 使用自定义数据包
-                        data = bytes.fromhex(generate_default_hex_data())  # 使用随机数据的连接包
-                        
-                        if len(data) > buffer_size:
-                        	print(f"Warning: Data packet length {len(data)} exceeds buffer size {buffer_size}. Truncating...")
-                        	data = data[:buffer_size]  # 截断数据包以适应缓冲区
-                        
-                        with lock:  # 线程安全地清理缓冲区并发送数据包
-                            if show_debug:
-                                print(f"\nSysTime: {time.strftime('%Y-%m-%d %H:%M:%S')}    Count: {count}")
-                                print(f"Send to: ({resolved_target_host}, {target_port})‹ {listen_port} ›: {data.hex()}")
-                            clear_socket_buffer(client, show_debug)  # 发送数据包之前清理缓冲区
-                            client.sendto(data, (resolved_target_host, target_port))
+                        # 在持续发送模式下生成随机的数据包
+                        data = bytes.fromhex(generate_default_hex_data())
+                        if show_debug:
+                            print(f"\nSysTime: {time.strftime('%Y-%m-%d %H:%M:%S')}    Count: {count}")
+                            print(f"Send to: ({resolved_target_host}, {target_port})‹ {listen_port} ›: {data.hex()}")
+                        clear_socket_buffer(client, show_debug)  # 发送数据包之前清理缓冲区
+                        client.sendto(data, (resolved_target_host, target_port))
 
-                            start_time = time.time()
-                            try:
-                                client.settimeout(wait_time)
-                                response, addr = client.recvfrom(4096)
-                                end_time = time.time()
-                                response_time = (end_time - start_time) * 1000  # 转换为毫秒
-                                if show_debug:
-                                    print(f"Recv from: {addr}‹ {response_time:.2f} ms ›: {response.hex()}")
-                                else:
-                                    print(f"Recv from: {addr}‹ {listen_port} ›‹ {response_time:.2f} ms ›[ {count} ]")
-                            except socket.timeout:
-                                print(f"No response within {wait_time} seconds,‹ {listen_port} ›timing out...")
-                            except socket.error as e:
-                                print(f"Socket error while receiving: {e}")
+                        start_time = time.time()
+                        try:
+                            client.settimeout(wait_time)
+                            response, addr = client.recvfrom(4096)
+                            end_time = time.time()
+                            response_time = (end_time - start_time) * 1000  # Convert to milliseconds
+                            if show_debug:
+                                print(f"Recv from: {addr}‹ {response_time:.2f} ms ›: {response.hex()}")
+                            else:
+                                print(f"Recv from: {addr}‹ {listen_port} ›‹ {response_time:.2f} ms ›[ {count} ]")
+                        except socket.timeout:
+                            print(f"No response within {wait_time} seconds,‹ {listen_port} ›timing out...")
+                        except socket.error as e:
+                            print(f"Socket error while receiving: {e}")
 
                     except Exception as e:
                         print(f"Failed to send data: {e}")
@@ -276,22 +238,19 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                     if args.listen_port == 0 and sent_packets >= 4:
                         # print("Switching ports after 4 requests...")
                         client.close()
-                        with lock:
-                        	client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0, show_debug)
-                        	if not client:
-                        		return
-                        	warm_up_connection(client, resolved_target_host, target_port, proxy)  # 预热新端口连接 = 防止首个包高延迟
+                        client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0, show_debug)
+                        if not client:
+                            return
+                        warm_up_connection(client, resolved_target_host, target_port, proxy)  # 预热新端口连接 = 防止首个包高延迟
                         sent_packets = 0
 
-                    precise_sleep(interval_time)
-                    # time.sleep(interval_time)  # 旧版本的延迟控制
+                    time.sleep(interval_time)
         else:
-            # 正常模式(默认) = 探测1次
             for hex_data in hex_data_packets:
                 try:
                     count += 1
                     sent_packets += 1
-                    data = bytes.fromhex(hex_data)  # 使用自定义数据包
+                    data = bytes.fromhex(hex_data)
                     if show_debug:
                         print(f"\nSysTime: {time.strftime('%Y-%m-%d %H:%M:%S')}    Count: {count}")
                         print(f"Send to: ({resolved_target_host}, {target_port})‹ {listen_port} ›: {data.hex()}")
@@ -325,8 +284,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                         return
                     sent_packets = 0
 
-                precise_sleep(interval_time)
-                # time.sleep(interval_time)  # 旧版本的延迟控制
+                time.sleep(interval_time)
     except KeyboardInterrupt:
         print("Interrupted by user")
     except Exception as e:
