@@ -160,11 +160,11 @@ def check_proxy_connection(proxy_type, proxy_host, proxy_port, show_debug):
 def clear_socket_buffer(client, show_debug):
     """清理套接字缓冲区，避免数据包合并发送导致丢包问题"""
     try:
-    	client.settimeout(0.01)  # 设置一个非常短的超时
-    	while True:
-    		data, addr = client.recvfrom(4096)  # 尝试读取数据并丢弃
-    		if show_debug:
-    			print(f"Clearing socket buffer, discarded packet from: {addr}")
+        client.settimeout(0.01)  # 设置一个非常短的超时
+        while True:
+            data, addr = client.recvfrom(4096)  # 尝试读取数据并丢弃
+            if show_debug:
+                print(f"Clearing socket buffer, discarded packet from: {addr}")
     except socket.timeout:
     	pass  # 超时后退出循环，说明缓冲区已清空
     except Exception as e:
@@ -244,8 +244,8 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                         data = bytes.fromhex(generate_default_hex_data())  # 使用随机数据的连接包
                         
                         if len(data) > buffer_size:
-                        	print(f"Warning: Data packet length {len(data)} exceeds buffer size {buffer_size}. Truncating...")
-                        	data = data[:buffer_size]  # 截断数据包以适应缓冲区
+                            print(f"Warning: Data packet length {len(data)} exceeds buffer size {buffer_size}. Truncating...")
+                            data = data[:buffer_size]  # 截断数据包以适应缓冲区
                         
                         with lock:  # 线程安全地清理缓冲区并发送数据包
                             if show_debug:
@@ -277,10 +277,10 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                         # print("Switching ports after 4 requests...")
                         client.close()
                         with lock:
-                        	client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0, show_debug)
-                        	if not client:
-                        		return
-                        	warm_up_connection(client, resolved_target_host, target_port, proxy)  # 预热新端口连接 = 防止首个包高延迟
+                            client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0, show_debug)
+                            if not client:
+                                return
+                        warm_up_connection(client, resolved_target_host, target_port, proxy)  # 预热新端口连接 = 防止首个包高延迟
                         sent_packets = 0
 
                     precise_sleep(interval_time)
