@@ -115,9 +115,9 @@ def create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, listen_
         if show_debug:
             print(f"Listening on port {sockname}... ", end="")
             if client.getsockname()[1] == listen_port:
-            	print("ok")
+                print("ok")
             else:
-            	print("fail")
+                print("fail")
         return client, listen_port
     except Exception as e:
         print(f"Failed to bind to port {listen_port}: {e}")
@@ -151,7 +151,7 @@ def check_proxy_connection(proxy_type, proxy_host, proxy_port, show_debug):
         test_socket.connect((proxy_host, proxy_port))
         test_socket.close()
         if show_debug:
-        	print(f"Proxy {proxy_host}:{proxy_port} is reachable.")
+            print(f"Proxy {proxy_host}:{proxy_port} is reachable.")
         return True
     except Exception as e:
         print(f"Failed to connect to proxy {proxy_host}:{proxy_port}: {e}")
@@ -166,11 +166,11 @@ def clear_socket_buffer(client, show_debug):
             if show_debug:
                 print(f"Clearing socket buffer, discarded packet from: {addr}")
     except socket.timeout:
-    	pass  # 超时后退出循环，说明缓冲区已清空
+        pass  # 超时后退出循环，说明缓冲区已清空
     except Exception as e:
-    	print(f"Error while clearing socket buffer: {e}")  # 清理套接字缓冲区时出错
+        print(f"Error while clearing socket buffer: {e}")  # 清理套接字缓冲区时出错
     finally:
-    	client.settimeout(None)  # 还原超时设置
+        client.settimeout(None)  # 还原超时设置
 
 def precise_sleep(duration):
     """精准型延迟控制器"""
@@ -184,7 +184,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
     # 设置发送缓冲区的大小
     buffer_size = get_buffer_size(hex_data_packets)
     if show_debug:
-    	print(f"Buffer size set to: {buffer_size} bytes")
+        print(f"Buffer size set to: {buffer_size} bytes")
 
     # 检查代理可用性
     if proxy_host and proxy_port:
@@ -230,24 +230,24 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
         return
 
     warm_up_connection(client, resolved_target_host, target_port, proxy)  # 预热新端口连接 = 防止首个包高延迟
-    count = 0
-    sent_packets = 0
+    count = 0 # 累计发包统计
+    sent_packets = 0 # 4次发包后循环更换端口统计
 
     try:
         if continuous:  # 在持续发送模式下
             while True:
                 for hex_data in hex_data_packets:
                     try:
-                        count += 1
-                        sent_packets += 1
-                        # data = bytes.fromhex(hex_data)  # 使用自定义数据包
-                        data = bytes.fromhex(generate_default_hex_data())  # 使用随机数据的连接包
-                        
-                        if len(data) > buffer_size:
-                            print(f"Warning: Data packet length {len(data)} exceeds buffer size {buffer_size}. Truncating...")
-                            data = data[:buffer_size]  # 截断数据包以适应缓冲区
-                        
-                        with lock:  # 线程安全地清理缓冲区并发送数据包
+                    	count += 1
+                    	sent_packets += 1
+                    	# data = bytes.fromhex(hex_data)  # 使用自定义数据包
+                    	data = bytes.fromhex(generate_default_hex_data())  # 使用随机数据的连接包
+
+                    	if len(data) > buffer_size:
+                    		print(f"Warning: Data packet length {len(data)} exceeds buffer size {buffer_size}. Truncating...")
+                    		data = data[:buffer_size]  # 截断数据包以适应缓冲区
+
+                    	with lock:  # 线程安全地清理缓冲区并发送数据包                    	
                             if show_debug:
                                 print(f"\nSysTime: {time.strftime('%Y-%m-%d %H:%M:%S')}    Count: {count}")
                                 print(f"Send to: ({resolved_target_host}, {target_port})‹ {listen_port} ›: {data.hex()}")
@@ -272,7 +272,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                     except Exception as e:
                         print(f"Failed to send data: {e}")
 
-                    # Check if it's time to switch ports only if a random port is used / 检查是否仅在使用随机端口时才需要切换端口
+                    # 检查是否仅在使用随机端口时才需要切换端口
                     if args.listen_port == 0 and sent_packets >= 4:
                         # print("Switching ports after 4 requests...")
                         client.close()
@@ -303,7 +303,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                         client.settimeout(wait_time)
                         response, addr = client.recvfrom(4096)
                         end_time = time.time()
-                        response_time = (end_time - start_time) * 1000  # Convert to milliseconds
+                        response_time = (end_time - start_time) * 1000  # 转换为毫秒
                         if show_debug:
                             print(f"Recv from: {addr}‹ {response_time:.2f} ms ›: {response.hex()}")
                         else:
@@ -316,7 +316,7 @@ def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv
                 except Exception as e:
                     print(f"Failed to send data: {e}")
 
-                # Check if it's time to switch ports only if a random port is used
+                # 检查是否仅在使用随机端口时才需要切换端口
                 if args.listen_port == 0 and sent_packets >= 4:
                     print("Switching ports after 4 requests...")
                     client.close()

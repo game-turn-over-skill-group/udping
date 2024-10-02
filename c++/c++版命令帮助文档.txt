@@ -1,0 +1,80 @@
+
+
+//该版本代码未完工 暂不可用 部分函数未转换
+
+
+命令行参数说明
+目标主机（必选参数）
+用法：udping <target_host>
+说明：指定要发送 UDP 数据包的目标主机。
+目标端口（可选参数，默认值：6969）
+用法：udping <target_host> [target_port]
+说明：指定要发送 UDP 数据包的目标端口。如果未指定，默认使用端口 6969。
+十六进制数据包（可选参数，默认值：固定格式 + 后 8 位随机数据包）
+用法：udping <target_host> [target_port] [hex_data_packets...]
+说明：指定要发送的十六进制数据包。如果未指定，默认生成一个固定格式 + 后 8 位随机数据包。
+-4：使用 IPv4
+用法：udping <target_host> [target_port] [hex_data_packets...] -4
+说明：强制使用 IPv4 协议。
+-6：使用 IPv6
+用法：udping <target_host> [target_port] [hex_data_packets...] -6
+说明：强制使用 IPv6 协议。
+-s：显示调试信息
+用法：udping <target_host> [target_port] [hex_data_packets...] -s
+说明：启用调试模式，显示详细信息。
+-l：监听端口
+用法：udping <target_host> [target_port] [hex_data_packets...] -l <listen_port>
+说明：指定本地监听端口。如果未指定，默认使用随机端口。
+-c：持续发送数据包
+用法：udping <target_host> [target_port] [hex_data_packets...] -c
+说明：持续发送数据包。
+-i：发送数据包的时间间隔（秒）
+用法：udping <target_host> [target_port] [hex_data_packets...] -i <interval_time>
+说明：指定发送数据包的时间间隔，单位为秒。默认值为 1.0 秒。
+-w：等待响应的超时时间（秒）
+用法：udping <target_host> [target_port] [hex_data_packets...] -w <wait_time>
+说明：指定等待响应的超时时间，单位为秒。默认值为 2.0 秒。
+示例用法
+默认使用随机端口，发送到目标主机和端口
+指定目标端口
+指定十六进制数据包
+使用 IPv4 协议
+使用 IPv6 协议
+启用调试模式
+指定本地监听端口
+持续发送数据包
+指定发送数据包的时间间隔
+指定等待响应的超时时间
+默认值
+监听端口：如果未指定 -l 参数，默认使用随机端口。
+发送数据包的时间间隔：默认值为 1.0 秒。
+等待响应的超时时间：默认值为 2.0 秒。
+
+
+
+编译：
+cd "e:\云盘数据暂存区\Github\udping"
+g++ -std=c++11 -o udping udping.cpp
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
