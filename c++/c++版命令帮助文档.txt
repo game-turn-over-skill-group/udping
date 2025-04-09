@@ -56,7 +56,7 @@
 cd "e:\云盘数据暂存区\Github\udping"
 g++ -std=c++11 -o udping udping.cpp
 
-
+g++ udping.cpp -o udping -L "G:\msys64\usr\include\w32api\" -lws2tcpip -lpthread
 
 
 
