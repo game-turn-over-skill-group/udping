@@ -1,4 +1,4 @@
-('E:\\云盘数据暂存区\\Github\\udping\\build\\udping\\PYZ-00.pyz',
+('E:\\Github\\udping\\build\\udping\\PYZ-00.pyz',
  [('_compat_pickle',
    'C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\_compat_pickle.py',
    'PYMODULE'),

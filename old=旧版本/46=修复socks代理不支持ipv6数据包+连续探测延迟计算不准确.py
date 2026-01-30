@@ -68,12 +68,14 @@ def generate_default_hex_data():
     # print(f"Generated default hex data: {default_hex_data}")
     return default_hex_data
 
-def get_buffer_size(hex_data):
+def get_buffer_size(hex_data_packets):
     """根据数据包长度设置缓冲区大小"""
-    if hex_data:
-        max_packet_length = len(hex_data) // 2
+    if hex_data_packets:
+        # 检测自定义数据包的长度，并为缓冲区添加 2 字节的冗余空间
+        max_packet_length = max(len(packet) for packet in hex_data_packets) // 2  # 每两个字符表示一个字节
         buffer_size = max_packet_length + 2
     else:
+        # 使用默认数据包大小（16 字节 + 2 字节缓冲区冗余）
         buffer_size = 16 + 2
     return buffer_size
 
@@ -191,7 +193,7 @@ def precise_sleep(duration):
     while time.perf_counter() - start < duration:
         pass
 
-def udp_tracker(target_host, target_port, custom_hex_data, is_custom_hex, listen_port, use_ipv4, use_ipv6, show_debug, continuous, interval_time, wait_time, proxy):
+def udp_tracker(target_host, target_port, hex_data_packets, listen_port, use_ipv4, use_ipv6, show_debug, continuous, interval_time, wait_time, proxy):
     proxy_type, proxy_host, proxy_port = parse_proxy(proxy)
 
     # 新增：SOCKS5代理不支持IPv6，提前报错
@@ -199,8 +201,8 @@ def udp_tracker(target_host, target_port, custom_hex_data, is_custom_hex, listen
         print("Error: SOCKS5 proxy does not support IPv6 UDP packets. Please use IPv4 instead.")
         return
 
-    # 设置发送缓冲区的大小 缓冲区大小根据【自定义包/默认包】适配
-    buffer_size = get_buffer_size(custom_hex_data if is_custom_hex else generate_default_hex_data())
+    # 设置发送缓冲区的大小
+    buffer_size = get_buffer_size(hex_data_packets)
     if show_debug:
         print(f"Buffer size set to: {buffer_size} bytes")
 
@@ -254,106 +256,101 @@ def udp_tracker(target_host, target_port, custom_hex_data, is_custom_hex, listen
     try:
         if continuous:  # 在持续发送模式下
             while True:
-            	try:
-            		count += 1
-            		sent_packets += 1
-            		# 核心判断：根据is_custom_hex标记决定包类型
-            		if is_custom_hex:
-            			data = bytes.fromhex(custom_hex_data)  # 使用自定义数据包
-            		else:
-            			data = bytes.fromhex(generate_default_hex_data())  # 使用随机数据的连接包
+                for hex_data in hex_data_packets:
+                    try:
+                    	count += 1
+                    	sent_packets += 1
+                    	# data = bytes.fromhex(hex_data)  # 使用自定义数据包
+                    	data = bytes.fromhex(generate_default_hex_data())  # 使用随机数据的连接包
 
-            		if len(data) > buffer_size:
-            			print(f"Warning: Data packet length {len(data)} exceeds buffer size {buffer_size}. Truncating...")
-            			data = data[:buffer_size]  # 截断数据包以适应缓冲区
+                    	if len(data) > buffer_size:
+                    		print(f"Warning: Data packet length {len(data)} exceeds buffer size {buffer_size}. Truncating...")
+                    		data = data[:buffer_size]  # 截断数据包以适应缓冲区
 
-            		with lock:  # 线程安全地清理缓冲区并发送数据包
-            			if show_debug:
-            				print(f"\nSysTime: {time.strftime('%Y-%m-%d %H:%M:%S')}    Count: {count}")
-            				print(f"Send to: ({resolved_target_host}, {target_port})‹ {listen_port} ›: {data.hex()}")
+                    	with lock:  # 线程安全地清理缓冲区并发送数据包                    	
+                            if show_debug:
+                                print(f"\nSysTime: {time.strftime('%Y-%m-%d %H:%M:%S')}    Count: {count}")
+                                print(f"Send to: ({resolved_target_host}, {target_port})‹ {listen_port} ›: {data.hex()}")
 
-            			clear_socket_buffer(client, show_debug)  # 发送数据包之前清理缓冲区
-            			client.sendto(data, (resolved_target_host, target_port))
-            			start_time = time.time()
+                            clear_socket_buffer(client, show_debug)  # 发送数据包之前清理缓冲区
+                            client.sendto(data, (resolved_target_host, target_port))
+                            start_time = time.time()
 
-            			try:
-            				client.settimeout(wait_time)
-            				response, addr = client.recvfrom(4096)
-            				end_time = time.time()
-            				response_time = (end_time - start_time) * 1000  # 转换为毫秒
-            				if show_debug:
-            					print(f"Recv from: {addr}‹ {response_time:.2f} ms ›: {response.hex()}")
-            				else:
-            					print(f"Recv from: {addr}‹ {listen_port} ›‹ {response_time:.2f} ms ›[ {count} ]")
-            			except socket.timeout:
-            				print(f"No response within {wait_time} seconds,‹ {listen_port} ›timing out...")
-            			except socket.error as e:
-            				print(f"Socket error while receiving: {e}")
+                            try:
+                                client.settimeout(wait_time)
+                                response, addr = client.recvfrom(4096)
+                                end_time = time.time()
+                                response_time = (end_time - start_time) * 1000  # 转换为毫秒
+                                if show_debug:
+                                    print(f"Recv from: {addr}‹ {response_time:.2f} ms ›: {response.hex()}")
+                                else:
+                                    print(f"Recv from: {addr}‹ {listen_port} ›‹ {response_time:.2f} ms ›[ {count} ]")
+                            except socket.timeout:
+                                print(f"No response within {wait_time} seconds,‹ {listen_port} ›timing out...")
+                            except socket.error as e:
+                                print(f"Socket error while receiving: {e}")
 
-            	except Exception as e:
-            		print(f"Failed to send data: {e}")
+                    except Exception as e:
+                        print(f"Failed to send data: {e}")
 
-            	# 检查是否仅在使用随机端口时才需要切换端口
-            	if args.listen_port == 0 and sent_packets >= 4:
-            		# print("Switching ports after 4 requests...")
-            		client.close()
-            		with lock:
-            			client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0, show_debug)
-            			if not client:
-            				return
-            		warm_up_connection(client, resolved_target_host, target_port, proxy)  # 预热新端口连接 = 防止首个包高延迟
-            		sent_packets = 0
-            		clear_socket_buffer(client, show_debug)  # 新增：端口切换后强制清空缓冲区，避免旧数据干扰
+                    # 检查是否仅在使用随机端口时才需要切换端口
+                    if args.listen_port == 0 and sent_packets >= 4:
+                        # print("Switching ports after 4 requests...")
+                        client.close()
+                        with lock:
+                            client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0, show_debug)
+                            if not client:
+                                return
+                        warm_up_connection(client, resolved_target_host, target_port, proxy)  # 预热新端口连接 = 防止首个包高延迟
+                        sent_packets = 0
+                        clear_socket_buffer(client, show_debug)  # 新增：端口切换后强制清空缓冲区，避免旧数据干扰
 
-            	precise_sleep(interval_time)
-            	# time.sleep(interval_time)  # 旧版本的延迟控制
+                    precise_sleep(interval_time)
+                    # time.sleep(interval_time)  # 旧版本的延迟控制
         else:
-            try:
-                # 正常模式(默认) = 探测1次
-                count += 1
-                sent_packets += 1
-                if is_custom_hex:
-                    data = bytes.fromhex(custom_hex_data)  # 使用自定义数据包
-                else:
-                    data = bytes.fromhex(generate_default_hex_data())  # 使用随机数据的连接包
-
-                if show_debug:
-                    print(f"\nSysTime: {time.strftime('%Y-%m-%d %H:%M:%S')}    Count: {count}")
-                    print(f"Send to: ({resolved_target_host}, {target_port})‹ {listen_port} ›: {data.hex()}")
-
-                clear_socket_buffer(client, show_debug)  # 发送数据包之前清理缓冲区
-                client.sendto(data, (resolved_target_host, target_port))
-                start_time = time.time()
-
+            # 正常模式(默认) = 探测1次
+            for hex_data in hex_data_packets:
                 try:
-                    client.settimeout(wait_time)
-                    response, addr = client.recvfrom(4096)
-                    end_time = time.time()
-                    response_time = (end_time - start_time) * 1000  # 转换为毫秒
+                    count += 1
+                    sent_packets += 1
+                    data = bytes.fromhex(hex_data)  # 使用自定义数据包
                     if show_debug:
-                        print(f"Recv from: {addr}‹ {response_time:.2f} ms ›: {response.hex()}")
-                    else:
-                        print(f"Recv from: {addr}‹ {listen_port} ›‹ {response_time:.2f} ms ›[ {count} ]")
-                except socket.timeout:
-                    print(f"No response within {wait_time} seconds,‹ {local_listen_port} ›timing out...")
-                except socket.error as e:
-                    print(f"Socket error while receiving: {e}")
+                        print(f"\nSysTime: {time.strftime('%Y-%m-%d %H:%M:%S')}    Count: {count}")
+                        print(f"Send to: ({resolved_target_host}, {target_port})‹ {listen_port} ›: {data.hex()}")
 
-            except Exception as e:
-            	print(f"Failed to send data: {e}")
+                    clear_socket_buffer(client, show_debug)  # 发送数据包之前清理缓冲区
+                    client.sendto(data, (resolved_target_host, target_port))
+                    start_time = time.time()
 
-            # 检查是否仅在使用随机端口时才需要切换端口
-            if args.listen_port == 0 and sent_packets >= 4:
-            	print("Switching ports after 4 requests...")
-            	client.close()
-            	client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0, show_debug)
-            	if not client:
-            		return
-            	sent_packets = 0
-            	clear_socket_buffer(client, show_debug)  # 新增：端口切换后强制清空缓冲区，避免旧数据干扰
+                    try:
+                        client.settimeout(wait_time)
+                        response, addr = client.recvfrom(4096)
+                        end_time = time.time()
+                        response_time = (end_time - start_time) * 1000  # 转换为毫秒
+                        if show_debug:
+                            print(f"Recv from: {addr}‹ {response_time:.2f} ms ›: {response.hex()}")
+                        else:
+                            print(f"Recv from: {addr}‹ {listen_port} ›‹ {response_time:.2f} ms ›[ {count} ]")
+                    except socket.timeout:
+                        print(f"No response within {wait_time} seconds,‹ {listen_port} ›timing out...")
+                    except socket.error as e:
+                        print(f"Socket error while receiving: {e}")
 
-            precise_sleep(interval_time)
-            # time.sleep(interval_time)  # 旧版本的延迟控制
+                except Exception as e:
+                    print(f"Failed to send data: {e}")
+
+                # 检查是否仅在使用随机端口时才需要切换端口
+                if args.listen_port == 0 and sent_packets >= 4:
+                    print("Switching ports after 4 requests...")
+                    client.close()
+                    client, listen_port = create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, 0, show_debug)
+                    if not client:
+                        return
+                    sent_packets = 0
+                    clear_socket_buffer(client, show_debug)  # 新增：端口切换后强制清空缓冲区，避免旧数据干扰
+
+                precise_sleep(interval_time)
+                # time.sleep(interval_time)  # 旧版本的延迟控制
     except KeyboardInterrupt:
         print("Interrupted by user")
     except Exception as e:
@@ -367,7 +364,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="UDPing tool with proxy support")
     parser.add_argument("target_host", help="Target host to send UDP packets to")
     parser.add_argument("target_port", type=int, nargs='?', default=6969, help="Target port to send UDP packets to (default: 6969)")
-    parser.add_argument("custom_hex_data", nargs='?', default=None, help="Hexadecimal data packets to send (default: generated with random HEX value)")
+    parser.add_argument("hex_data_packets", nargs='*', default=[generate_default_hex_data()], help="Hexadecimal data packets to send (default: generated with random HEX value)")
     parser.add_argument("-l", "--listen-port", type=int, default=0, help="Local port to listen for responses (0 for random port)")
     parser.add_argument("-4", "--ipv4", action="store_true", help="Use IPv4")
     parser.add_argument("-6", "--ipv6", action="store_true", help="Use IPv6")
@@ -379,9 +376,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # 新增核心标记：是否传入了自定义数据包（None=未传入，非None=传入）
-    is_custom_hex = args.custom_hex_data is not None
-
     if args.ipv4 and args.ipv6:
         print("Error: Cannot use both IPv4 and IPv6 at the same time.")
         sys.exit(1)
@@ -389,8 +383,7 @@ if __name__ == "__main__":
     udp_tracker(
         target_host=args.target_host,
         target_port=args.target_port,
-        custom_hex_data=args.custom_hex_data,
-        is_custom_hex=is_custom_hex,
+        hex_data_packets=args.hex_data_packets,
         listen_port=args.listen_port,
         use_ipv4=args.ipv4,
         use_ipv6=args.ipv6,
