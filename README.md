@@ -2,11 +2,11 @@
 
 ### 源码使用方法：
 ```
-usage: udping.py [-h] [-l LISTEN_PORT] [-4] [-6] [-s] [-c] [-i INTERVAL_TIME] [-w WAIT_TIME] [-x PROXY]
+usage: udping.py [-h] [-l LISTEN_PORT] [-4] [-6] [-s] [-c] [-n Counter] [-i INTERVAL_TIME] [-w WAIT_TIME] [-x PROXY]
                  target_host target_port hex_data_packets [hex_data_packets ...]
 udping.py: error: the following arguments are required: target_host, target_port, hex_data_packets
 
-用法：udping.py [-h] [-l 监听端口] [-4] [-6] [-s] [-c] [-i 请求间隔] [-w 超时时间] [-x 设置socks代理]
+用法：udping.py [-h] [-l 监听端口] [-4] [-6] [-s] [-c] [-n 探测次数] [-i 请求间隔] [-w 超时时间] [-x 设置socks代理]
 		基础必要参数：域名/ip 端口 数据包
 ```
 
@@ -30,11 +30,18 @@ Respond Delay Time: 0.00 ms
 Recv from: ('27.151.84.5', 6969): 00000000697cd3fae0fe173475a68b01
 ```
 
-### 其他参数说明：（添加在必要参数后,不能在前面）
+```python
+python udping.py bt.rer.lol -n 5 -i 0.1    # 发5次，间隔0.1s
+python udping.py bt.rer.lol -c             # 持续发（-c 优先级高于 -n）
+```
+
+### 其他参数说明：（以下参数 使用仅在：ip/域名+端口{+自定义数据包}后才生效）
 ```javascript
 [-s] 显示 当前系统时间+执行次数 打印输出
 [-c] 持续探测 直到 CTRL+C 退出
-[-i s] 持续探测 精确到小数点后面的毫秒延迟 直到 CTRL+C 退出
+[-i] 探测间隔(s)秒 精确到小数点后面的毫秒延迟 默认为1(s)秒 直到 CTRL+C 退出
+[-w] 超时间隔(s)秒 等待超时的间隔 同样精确到小数点后 默认为2(s)秒
+[-n] 探测次数 完成次数后终止
 [-l] 使用固定监听端口请求 (默认随机端口)
 [-x] 启用socks代理：-x socks://127.0.0.1:42416 域名 可选端口 可选数据包
 ```

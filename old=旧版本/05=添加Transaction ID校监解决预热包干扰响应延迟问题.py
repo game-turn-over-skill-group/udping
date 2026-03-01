@@ -83,11 +83,10 @@ class Socks5UdpSocket:
     手动完成 SOCKS5 UDP Associate 握手，封装成与 socket 相同接口的对象。
     支持代理地址为 IPv4 或 IPv6，目标地址也可以是 IPv4 / IPv6 / 域名。
     """
-    def __init__(self, proxy_host, proxy_port, local_port=0, show_debug=False):
+    def __init__(self, proxy_host, proxy_port, show_debug=False):
         self.show_debug = show_debug
         self.proxy_host = proxy_host
         self.proxy_port = proxy_port
-        self.local_port = local_port  # 0=随机，非0=用户指定固定端口
         self._tcp_ctrl = None    # TCP 控制连接（握手后必须保持，不能关闭）
         self._udp_sock = None    # 本地 UDP socket
         self._relay_addr = None  # 代理返回的 UDP 中继地址 (host, port)
@@ -145,12 +144,10 @@ class Socks5UdpSocket:
         #if self.show_debug:
         #    print(f"SOCKS5 UDP relay at {self._relay_addr}")
 
-        # 5. 创建本地 UDP socket，地址族跟随代理，支持固定端口（-l 参数）
+        # 5. 创建本地 UDP socket，地址族跟随代理
         self._udp_sock = socket.socket(self._af, socket.SOCK_DGRAM)
-        if self._af == socket.AF_INET:
-            self._udp_sock.bind(('', self.local_port))
-        else:
-            self._udp_sock.bind(('::', self.local_port))
+        bind_addr = ('', 0) if self._af == socket.AF_INET else ('::', 0)
+        self._udp_sock.bind(bind_addr)
         self._tcp_ctrl.settimeout(None)
         return self
 
@@ -260,7 +257,7 @@ def create_socket_and_bind(protocol, proxy_type, proxy_host, proxy_port, listen_
         if proxy_type == 'socks':
             #if show_debug:
             #    print("Creating SOCKS5 UDP socket (manual associate, supports IPv4/IPv6 proxy)...")
-            client = Socks5UdpSocket(proxy_host, proxy_port, local_port=listen_port, show_debug=show_debug)
+            client = Socks5UdpSocket(proxy_host, proxy_port, show_debug)
             client.connect()
             bind_port = client.bind_port()
         else:
